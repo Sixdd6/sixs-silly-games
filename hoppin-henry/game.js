@@ -7,9 +7,14 @@ const winScreen = document.getElementById('winScreen');
 const continueOption = document.getElementById('continueOption');
 const regularRestart = document.getElementById('regularRestart');
 const continueLevelDisplay = document.getElementById('continueLevel');
+const mainMenu = document.getElementById('start-menu');
+const startButton = document.getElementById('startButton');
+const bestScoreDisplay = document.getElementById('bestScore');
+const highestLevelDisplay = document.getElementById('highestLevel');
 const gameContainer = document.querySelector('.game-container');
 const cloudsContainer = document.getElementById('clouds-container');
 const staminaPoints = document.querySelectorAll('.stamina-point');
+const badgeSlots = document.querySelectorAll('.badge-slot');
 
 let isJumping = false;
 let isDoubleJumping = false;
@@ -20,6 +25,7 @@ let baseScore = 0;
 let level = 1;
 let currentLevelTallCacti = 0;
 let highScore = parseInt(localStorage.getItem('highScore')) || 0;
+let highestLevel = parseInt(localStorage.getItem('highestLevel')) || 1;
 let lastCheckpoint = parseInt(localStorage.getItem('lastCheckpoint')) || 0;
 let isGameOver = false;
 let isSpaceBarDown = false;
@@ -32,11 +38,241 @@ let gameLoop = null;
 let cloudLoop = null;
 let stamina = 6;
 let lastChickenSpawn = 0;
+let gameStarted = false;
+let sheriffBadges = 0;
+let activeBadge = false;
+let cactusSpawnPaused = false;
 
-// Initialize displays
-highScoreDisplay.textContent = `High Score: ${highScore}`;
-levelDisplay.textContent = `Level: ${level}/100`;
-updateStaminaDisplay();
+function addBadge() {
+    const nextEmptySlot = Array.from(badgeSlots).find(slot => 
+        !slot.classList.contains('earned') && 
+        !slot.classList.contains('used')
+    );
+    
+    if (nextEmptySlot) {
+        nextEmptySlot.classList.add('earned');
+        sheriffBadges++;
+        
+        // Make the first badge active
+        if (sheriffBadges === 1) {
+            nextEmptySlot.classList.add('active');
+            activeBadge = true;
+        }
+    }
+}
+
+function useBadge() {
+    if (sheriffBadges > 0) {
+        const activeBadgeElement = document.querySelector('.badge-slot.active');
+        
+        if (activeBadgeElement) {
+            activeBadgeElement.classList.remove('active');
+            activeBadgeElement.classList.add('used');
+            
+            sheriffBadges--;
+            activeBadge = false;
+            
+            // Activate next badge if available
+            if (sheriffBadges > 0) {
+                const nextBadge = Array.from(badgeSlots).find(slot => 
+                    slot.classList.contains('earned') && 
+                    !slot.classList.contains('used')
+                );
+                if (nextBadge) {
+                    nextBadge.classList.add('active');
+                    activeBadge = true;
+                }
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+function checkCollision(element) {
+    const cowboyRect = cowboy.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    
+    // More forgiving collision detection for tall cacti
+    const isTallCactus = element.classList.contains('tall');
+    const horizontalBuffer = isTallCactus ? 12 : 10;
+    const verticalBuffer = isTallCactus ? 10 : 8;
+    
+    return !(
+        cowboyRect.right - horizontalBuffer < elementRect.left || 
+        cowboyRect.left + horizontalBuffer > elementRect.right || 
+        cowboyRect.bottom - verticalBuffer < elementRect.top || 
+        cowboyRect.top + verticalBuffer > elementRect.bottom
+    );
+}
+
+function checkLevelProgress() {
+    const oldLevel = level;
+    level = Math.min(Math.floor(baseScore / 10) + 1, 100);
+    
+    if (level !== oldLevel) {
+        levelDisplay.textContent = `Level: ${level}/100`;
+        
+        // Update highest level if needed
+        if (level > highestLevel) {
+            highestLevel = level;
+            localStorage.setItem('highestLevel', highestLevel);
+            highestLevelDisplay.textContent = highestLevel;
+        }
+        
+        // Reset tall cactus counter for new level
+        currentLevelTallCacti = 0;
+        
+        // Spawn chicken at start of each non-challenge level
+        if (level % 10 !== 0 && level !== oldLevel) {
+            createChicken();
+        }
+        
+        // Visual feedback for challenge levels and set checkpoint after completing one
+        if (level % 10 === 0 && level < 100) {
+            // Entering challenge level
+            levelDisplay.style.color = '#ff4d4d';
+            levelDisplay.style.fontSize = '24px';
+            setTimeout(() => {
+                levelDisplay.style.color = '';
+                levelDisplay.style.fontSize = '';
+            }, 1000);
+        } else if (oldLevel % 10 === 0 && level % 10 === 1) {
+            // Just completed a challenge level
+            lastCheckpoint = oldLevel;
+            localStorage.setItem('lastCheckpoint', lastCheckpoint);
+            
+            // Pause cactus spawning
+            cactusSpawnPaused = true;
+            
+            // Create and animate badge pickup
+            const lastCactusPos = cacti.length > 0 ? cacti[cacti.length - 1].position : window.innerWidth / 2;
+            const badge = document.createElement('div');
+            badge.className = 'badge-pickup';
+            badge.style.left = `${lastCactusPos + window.innerWidth/2}px`;
+            badge.style.top = '50%';
+            gameContainer.appendChild(badge);
+            
+            // Remove badge element after animation and resume cactus spawning
+            setTimeout(() => {
+                badge.remove();
+                addBadge();
+                cactusSpawnPaused = false;
+                createCactus(); // Start spawning cacti again
+            }, 1500);
+        }
+        
+        // Check for win condition
+        if (level === 100) {
+            winGame();
+        }
+    }
+}
+
+function resetGame(continueFromCheckpoint = false) {
+    if (!gameStarted) return;
+    
+    isGameOver = false;
+    isJumping = false;
+    isDoubleJumping = false;
+    canJump = true;
+    canDoubleJump = false;
+    position = 50;
+    currentLevelTallCacti = 0;
+    cactusSpawnPaused = false;
+    
+    // Clear badges
+    badgeSlots.forEach(slot => {
+        slot.classList.remove('earned', 'active', 'used');
+    });
+    sheriffBadges = 0;
+    activeBadge = false;
+    
+    if (continueFromCheckpoint && lastCheckpoint > 0) {
+        // Continue from the last checkpoint
+        level = lastCheckpoint + 1;
+        score = (level - 1) * 10;
+        baseScore = score;
+        
+        // Restore badges based on completed challenge levels
+        const completedChallenges = Math.floor(lastCheckpoint / 10);
+        for (let i = 0; i < completedChallenges; i++) {
+            addBadge();
+        }
+    } else {
+        // Full restart
+        level = 1;
+        score = 0;
+        baseScore = 0;
+        lastCheckpoint = 0;
+        localStorage.setItem('lastCheckpoint', 0);
+    }
+    
+    stamina = 6;
+    lastChickenSpawn = baseScore;
+    scoreDisplay.textContent = `Score: ${score}`;
+    levelDisplay.textContent = `Level: ${level}/100`;
+    gameOverDisplay.style.display = 'none';
+    winScreen.style.display = 'none';
+    cowboy.style.transform = 'translateY(0)';
+    updateStaminaDisplay();
+    
+    // Remove all existing cacti
+    cacti.forEach(cactus => gameContainer.removeChild(cactus.element));
+    cacti = [];
+    
+    // Remove all existing chickens
+    chickens.forEach(chicken => chicken.element.remove());
+    chickens = [];
+    
+    // Restart the game loop and cactus spawning
+    updateGame();
+    createCactus();
+}
+
+function updateStats() {
+    highScoreDisplay.textContent = `High Score: ${highScore}`;
+    bestScoreDisplay.textContent = highScore;
+    highestLevelDisplay.textContent = highestLevel;
+    levelDisplay.textContent = `Level: ${level}/100`;
+    updateStaminaDisplay();
+}
+
+function updateHighScore() {
+    if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('highScore', highScore);
+        updateStats();
+    }
+}
+
+function gameOver() {
+    if (level === 100) return; // Don't show game over if player has won
+    
+    isGameOver = true;
+    gameOverDisplay.style.display = 'block';
+    
+    // Show continue option if player has beaten a challenge level
+    if (lastCheckpoint > 0) {
+        continueOption.style.display = 'block';
+        regularRestart.style.display = 'none';
+        document.getElementById('continueLevel').textContent = lastCheckpoint + 1;
+        document.getElementById('continueLevelKey').textContent = lastCheckpoint + 1;
+    } else {
+        continueOption.style.display = 'none';
+        regularRestart.style.display = 'block';
+    }
+    
+    if (jumpAnimationFrame) {
+        cancelAnimationFrame(jumpAnimationFrame);
+        jumpAnimationFrame = null;
+    }
+    if (gameLoop) {
+        cancelAnimationFrame(gameLoop);
+        gameLoop = null;
+    }
+    updateHighScore();
+}
 
 function getDifficultySettings() {
     // Check if it's a challenge level (every 10th level)
@@ -65,68 +301,6 @@ function getDifficultySettings() {
     };
 }
 
-function checkCollision(element) {
-    const cowboyRect = cowboy.getBoundingClientRect();
-    const elementRect = element.getBoundingClientRect();
-    
-    // More forgiving collision detection for tall cacti
-    const isTallCactus = element.classList.contains('tall');
-    const horizontalBuffer = isTallCactus ? 12 : 10;
-    const verticalBuffer = isTallCactus ? 10 : 8;
-    
-    return !(
-        cowboyRect.right - horizontalBuffer < elementRect.left || 
-        cowboyRect.left + horizontalBuffer > elementRect.right || 
-        cowboyRect.bottom - verticalBuffer < elementRect.top || 
-        cowboyRect.top + verticalBuffer > elementRect.bottom
-    );
-}
-
-function updateHighScore() {
-    if (score > highScore) {
-        highScore = score;
-        localStorage.setItem('highScore', highScore);
-        highScoreDisplay.textContent = `High Score: ${highScore}`;
-        
-        // Add visual feedback when high score is beaten
-        highScoreDisplay.style.color = '#ff7b00';
-        setTimeout(() => {
-            highScoreDisplay.style.color = '#bc6c25';
-        }, 1000);
-    }
-}
-
-function checkLevelProgress() {
-    const oldLevel = level;
-    level = Math.min(Math.floor(baseScore / 10) + 1, 100);
-    
-    if (level !== oldLevel) {
-        levelDisplay.textContent = `Level: ${level}/100`;
-        
-        // Reset tall cactus counter for new level
-        currentLevelTallCacti = 0;
-        
-        // Visual feedback for challenge levels
-        if (level % 10 === 0 && level < 100) {
-            levelDisplay.style.color = '#ff4d4d';
-            levelDisplay.style.fontSize = '24px';
-            setTimeout(() => {
-                levelDisplay.style.color = '';
-                levelDisplay.style.fontSize = '';
-            }, 1000);
-            
-            // Set new checkpoint after completing a challenge level
-            lastCheckpoint = level;
-            localStorage.setItem('lastCheckpoint', lastCheckpoint);
-        }
-        
-        // Check for win condition
-        if (level === 100) {
-            winGame();
-        }
-    }
-}
-
 function updateStaminaDisplay() {
     staminaPoints.forEach((point, index) => {
         if (index < stamina) {
@@ -142,14 +316,15 @@ function createChicken() {
     chicken.className = 'chicken';
     
     const position = window.innerWidth;
-    chicken.style.transform = `translateX(${position}px)`;
+    chicken.style.left = `${position}px`;
     
     gameContainer.appendChild(chicken);
     
+    const speed = 3;
     chickens.push({
         element: chicken,
         position: position,
-        speed: 3,
+        speed: speed,
         collected: false
     });
 }
@@ -167,11 +342,14 @@ function jump() {
         isJumping = true;
         canJump = false;
         startJumpAnimation();
-    } else if (isJumping && !isDoubleJumping && canDoubleJump && !canJump && stamina > 0) {
+    } else if (isJumping && !isDoubleJumping && canDoubleJump && !canJump) {
         isDoubleJumping = true;
         canDoubleJump = false;
-        stamina--;
-        updateStaminaDisplay();
+        // Only consume stamina if the game has actually started
+        if (gameStarted && stamina > 0) {
+            stamina--;
+            updateStaminaDisplay();
+        }
         startDoubleJumpAnimation();
     }
 }
@@ -263,117 +441,109 @@ function startDoubleJumpAnimation() {
 }
 
 function updateGame(timestamp) {
-    if (isGameOver) return;
+    if (isGameOver || !gameStarted) return;
     
     const cowboyPos = window.innerWidth / 2;
     
-    // Update cacti positions and check collisions
+    // Update cacti
     for (let i = cacti.length - 1; i >= 0; i--) {
         const cactus = cacti[i];
         cactus.position -= cactus.speed;
         cactus.element.style.transform = `translateX(${cactus.position}px)`;
         
+        // Remove cacti that are off screen
         if (cactus.position < -50) {
             gameContainer.removeChild(cactus.element);
             cacti.splice(i, 1);
             continue;
         }
         
-        if (!cactus.hasScored && cactus.position < cowboyPos - 20) {
+        // Update score when passing a cactus
+        if (cactus.position < cowboyPos && !cactus.passed) {
+            cactus.passed = true;
             score++;
-            baseScore++; // Increment base score for normal points
+            baseScore = score;
             scoreDisplay.textContent = `Score: ${score}`;
-            cactus.hasScored = true;
+            updateHighScore();
             checkLevelProgress();
         }
         
+        // Check for collision
         if (Math.abs(cactus.position - cowboyPos) < 25 && checkCollision(cactus.element)) {
-            gameOver();
-            return;
+            if (!activeBadge || !useBadge()) {
+                gameOver();
+                return;
+            }
+            // If badge was used successfully, remove the cactus that was hit
+            gameContainer.removeChild(cactus.element);
+            cacti.splice(i, 1);
         }
     }
     
-    // Update chicken positions
-    chickens.forEach(chicken => {
+    // Update chickens
+    for (let i = chickens.length - 1; i >= 0; i--) {
+        const chicken = chickens[i];
         if (!chicken.collected) {
             chicken.position -= chicken.speed;
-            chicken.element.style.transform = `translateX(${chicken.position}px)`;
-        }
-    });
-    
-    // Remove off-screen chickens
-    chickens = chickens.filter(chicken => {
-        if (chicken.position < -50) {
-            chicken.element.remove();
-            return false;
-        }
-        return true;
-    });
-    
-    // Check for chicken collisions
-    chickens.forEach(chicken => {
-        if (chicken.collected) return;
-        
-        if (Math.abs(chicken.position - cowboyPos) < 30 && checkCollision(chicken.element)) {
-            chicken.collected = true;
-            chicken.element.style.opacity = '0';
-            setTimeout(() => chicken.element.remove(), 300);
+            chicken.element.style.left = `${chicken.position}px`;
             
-            // Calculate unused stamina restoration
-            const maxStamina = 6;
-            const staminaToRestore = 3;
-            const staminaNeeded = Math.max(0, maxStamina - stamina);
-            const unusedRestoration = Math.max(0, staminaToRestore - staminaNeeded);
-            const bonusPoints = Math.min(3, unusedRestoration);
-            
-            // Restore stamina
-            stamina = Math.min(maxStamina, stamina + staminaToRestore);
-            updateStaminaDisplay();
-            
-            // Award points for unused restoration
-            if (bonusPoints > 0) {
-                score += bonusPoints;
-                scoreDisplay.textContent = `Score: ${score}`;
-                checkLevelProgress();
+            // Check for collision with chicken using a more generous hitbox
+            if (Math.abs(chicken.position - cowboyPos) < 40 && checkCollision(chicken.element)) {
+                chicken.collected = true;
+                chicken.element.style.setProperty('--start-x', `${chicken.position}px`);
+                chicken.element.classList.add('collected');
                 
-                // Show floating score text
-                const floatingScore = document.createElement('div');
-                floatingScore.className = 'floating-score';
-                floatingScore.textContent = `+${bonusPoints}`;
-                floatingScore.style.left = `${chicken.position}px`;
-                floatingScore.style.top = '50%';
-                gameContainer.appendChild(floatingScore);
+                // Calculate stamina restoration and bonus points
+                const maxStamina = 6;
+                const staminaToRestore = 3;
+                const spaceForStamina = maxStamina - stamina;  // How much more stamina we can hold
+                const staminaGained = Math.min(staminaToRestore, spaceForStamina);  // How much we'll actually get
+                const bonusPoints = staminaToRestore - staminaGained;  // Leftover becomes points
+                
+                // Restore stamina
+                stamina += staminaGained;
+                updateStaminaDisplay();
+                
+                // Award points for unused restoration
+                if (bonusPoints > 0) {
+                    score += bonusPoints;
+                    baseScore += bonusPoints;
+                    scoreDisplay.textContent = `Score: ${score}`;
+                    updateHighScore();
+                    checkLevelProgress();
+                }
                 
                 setTimeout(() => {
-                    floatingScore.remove();
-                }, 1000);
+                    chicken.element.remove();
+                    chickens.splice(i, 1);
+                }, 500);
             }
         }
-    });
-    
-    // Clean up collected chickens
-    chickens = chickens.filter(chicken => !chicken.collected);
-    
-    // Spawn chicken logic - use baseScore instead of score
-    if (baseScore > lastChickenSpawn + 10 && Math.random() < 0.01) {
-        createChicken();
-        lastChickenSpawn = baseScore;
+        
+        // Remove chickens that are off screen
+        if (chicken.position < -50 && !chicken.collected) {
+            chicken.element.remove();
+            chickens.splice(i, 1);
+        }
     }
     
+    // Continue the game loop
     gameLoop = requestAnimationFrame(updateGame);
 }
 
 function createCactus() {
-    if (isGameOver) return;
-
+    if (isGameOver || !gameStarted || cactusSpawnPaused) return;
+    
+    const difficulty = getDifficultySettings();
+    
+    // Create cactus element
     const cactus = document.createElement('div');
-    cactus.className = 'cactus';
     
     // Only allow tall cactus if we haven't reached the limit
     const maxTallCactiPerLevel = 6;
     const canSpawnTall = currentLevelTallCacti < maxTallCactiPerLevel;
     
-    // 10% chance of tall cactus (15% in challenge levels), only if we haven't reached the limit
+    // Chance of tall cactus (higher in challenge levels), only if we haven't reached the limit
     const tallCactusChance = canSpawnTall ? (level % 10 === 0 ? 0.15 : 0.10) : 0;
     const isTallCactus = Math.random() < tallCactusChance;
     
@@ -382,24 +552,29 @@ function createCactus() {
         currentLevelTallCacti++;
     }
     
-    const difficulty = getDifficultySettings();
-    const speed = difficulty.minSpeed + (Math.random() * (difficulty.maxSpeed - difficulty.minSpeed));
-    const position = window.innerWidth;
+    cactus.className = `cactus${isTallCactus ? ' tall' : ''}`;
     
     // Make challenge level cacti red-tinted
     if (level % 10 === 0) {
         cactus.style.filter = 'sepia(100%) hue-rotate(300deg) saturate(3)';
     }
     
+    // Calculate speed based on difficulty
+    const speed = difficulty.minSpeed + (Math.random() * (difficulty.maxSpeed - difficulty.minSpeed));
+    
+    // Set initial position
+    const position = window.innerWidth;
     cactus.style.transform = `translateX(${position}px)`;
+    
+    // Add to game container
     gameContainer.appendChild(cactus);
     
+    // Add to cacti array
     cacti.push({
         element: cactus,
         position: position,
         speed: speed,
-        hasScored: false,
-        isTall: isTallCactus
+        passed: false
     });
 
     // Schedule next cactus with increased delay after tall cactus
@@ -482,76 +657,77 @@ function winGame() {
     updateHighScore();
 }
 
-function gameOver() {
-    if (level === 100) return; // Don't show game over if player has won
-    
-    isGameOver = true;
-    gameOverDisplay.style.display = 'block';
-    
-    // Show continue option if player has beaten a challenge level
-    if (lastCheckpoint > 0) {
-        continueOption.style.display = 'block';
-        regularRestart.style.display = 'none';
-        continueLevelDisplay.textContent = lastCheckpoint + 1;
-    } else {
-        continueOption.style.display = 'none';
-        regularRestart.style.display = 'block';
+function createInitialClouds() {
+    for (let i = 0; i < 8; i++) {
+        createCloud(true); // Initial clouds can spawn mid-screen
     }
+    updateClouds();
+}
+
+// Initialize displays
+updateStats();
+
+// Start menu button handler
+startButton.addEventListener('click', () => {
+    startGame();
+});
+
+// Game over button handlers
+document.getElementById('continueOption').addEventListener('click', () => resetGame(true));
+document.getElementById('regularRestart').addEventListener('click', () => resetGame(false));
+
+function startGame() {
+    if (gameStarted) return;
     
-    if (jumpAnimationFrame) {
-        cancelAnimationFrame(jumpAnimationFrame);
-        jumpAnimationFrame = null;
+    mainMenu.style.display = 'none';
+    gameOverDisplay.style.display = 'none';
+    winScreen.style.display = 'none';
+    document.querySelector('.hud').classList.remove('hidden');
+    
+    gameStarted = true;
+    isGameOver = false;
+    level = 1;
+    score = 0;
+    baseScore = 0;
+    stamina = 6;
+    updateStaminaDisplay();
+    
+    // Clear any existing cacti and chickens
+    cacti.forEach(cactus => cactus.element.remove());
+    cacti = [];
+    chickens.forEach(chicken => chicken.element.remove());
+    chickens = [];
+    
+    // Start game loops
+    updateGame();
+    createCactus();
+    if (!cloudLoop) {
+        createCloud();
     }
+}
+
+function showMainMenu() {
+    gameStarted = false;
+    isGameOver = false;
+    mainMenu.style.display = 'block';
+    gameOverDisplay.style.display = 'none';
+    winScreen.style.display = 'none';
+    document.querySelector('.hud').classList.add('hidden');
+    
+    // Clear any existing cacti and chickens
+    cacti.forEach(cactus => cactus.element.remove());
+    cacti = [];
+    chickens.forEach(chicken => chicken.element.remove());
+    chickens = [];
+    
+    // Reset cowboy position
+    cowboy.style.transform = 'translateY(0)';
+    
+    // Cancel any ongoing game loops
     if (gameLoop) {
         cancelAnimationFrame(gameLoop);
         gameLoop = null;
     }
-    updateHighScore();
-}
-
-function resetGame(continueFromCheckpoint = false) {
-    isGameOver = false;
-    isJumping = false;
-    isDoubleJumping = false;
-    canJump = true;
-    canDoubleJump = false;
-    position = 50;
-    currentLevelTallCacti = 0;
-    
-    if (continueFromCheckpoint && lastCheckpoint > 0) {
-        // Continue from the level after the last checkpoint
-        level = lastCheckpoint + 1;
-        score = (level - 1) * 10;
-        baseScore = score;
-    } else {
-        // Full restart
-        level = 1;
-        score = 0;
-        baseScore = 0;
-        lastCheckpoint = 0;
-        localStorage.setItem('lastCheckpoint', 0);
-    }
-    
-    stamina = 6;
-    lastChickenSpawn = baseScore;
-    scoreDisplay.textContent = `Score: ${score}`;
-    levelDisplay.textContent = `Level: ${level}/100`;
-    gameOverDisplay.style.display = 'none';
-    winScreen.style.display = 'none';
-    cowboy.style.transform = 'translateY(0)';
-    updateStaminaDisplay();
-    
-    // Remove all existing cacti
-    cacti.forEach(cactus => gameContainer.removeChild(cactus.element));
-    cacti = [];
-    
-    // Remove all existing chickens
-    chickens.forEach(chicken => chicken.element.remove());
-    chickens = [];
-    
-    // Restart the game loop and cactus spawning
-    updateGame();
-    createCactus();
 }
 
 // Update key handlers
@@ -563,9 +739,13 @@ document.addEventListener('keydown', (event) => {
             jump();
         }
     } else if (event.code === 'KeyR' && isGameOver) {
-        resetGame(false); // Full restart
+        resetGame(false);
     } else if (event.code === 'KeyC' && isGameOver && lastCheckpoint > 0) {
-        resetGame(true); // Continue from checkpoint
+        resetGame(true);
+    } else if (event.code === 'KeyM' && isGameOver) {
+        showMainMenu();
+    } else if (event.code === 'KeyN' && !gameStarted) {
+        startGame();
     }
 });
 
@@ -573,19 +753,9 @@ document.addEventListener('keyup', (event) => {
     if (event.code === 'Space') {
         isSpaceBarDown = false;
         if (isJumping && !isDoubleJumping) {
-            canDoubleJump = true; // Enable double jump only when space is released during first jump
+            canDoubleJump = true;
         } else if (!isJumping) {
             canJump = true;
         }
     }
 });
-
-// Start the game
-updateGame();
-createCactus();
-
-// Initialize with multiple clouds
-for (let i = 0; i < 8; i++) {
-    createCloud(true); // Initial clouds can spawn mid-screen
-}
-updateClouds();

@@ -1,5 +1,10 @@
+.hidden {
+    display: none !important;
+}
+
 body {
     margin: 0;
+    padding: 0;
     overflow: hidden;
     background: linear-gradient(to bottom, #87CEEB 0%, #e8f4f8 100%);
 }
@@ -9,6 +14,56 @@ body {
     width: 100vw;
     height: 100vh;
     overflow: hidden;
+    background: linear-gradient(to bottom, #87CEEB 0%, #e8f4f8 100%);
+}
+
+#clouds-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 60%;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.cloud {
+    position: absolute;
+    background: white;
+    border-radius: 20px;
+    opacity: 0.8;
+    animation: moveCloud linear infinite;
+}
+
+.cloud::before,
+.cloud::after {
+    content: '';
+    position: absolute;
+    background: white;
+    border-radius: 50%;
+}
+
+.cloud::before {
+    width: 50%;
+    height: 100%;
+    top: -40%;
+    left: 15%;
+}
+
+.cloud::after {
+    width: 30%;
+    height: 75%;
+    top: -25%;
+    right: 15%;
+}
+
+@keyframes moveCloud {
+    from {
+        transform: translateX(100vw);
+    }
+    to {
+        transform: translateX(-100%);
+    }
 }
 
 .ground {
@@ -170,52 +225,38 @@ body {
 }
 
 .key-hint {
-    color: #ffd700;
+    color: #ff4d4d;
+    text-decoration: underline;
     font-weight: bold;
-    padding: 2px 8px;
-    border: 1px solid #ffd700;
-    border-radius: 4px;
-    margin-right: 5px;
 }
 
-#clouds-container {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 200px;
-    overflow: hidden;
-    pointer-events: none;
+.start-button .key-hint,
+.game-button .key-hint {
+    display: inline;
+    color: #ff4d4d;
+    text-decoration: underline;
 }
 
-.cloud {
-    position: absolute;
-    background: white;
-    border-radius: 20px;
-    opacity: 0.8;
-    filter: blur(3px);
+.start-button {
+    background: #ffd700;
+    border: none;
+    padding: 15px 30px;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 16px;
+    color: #000;
+    border-radius: 5px;
+    cursor: pointer;
+    margin: 20px 0;
+    transition: transform 0.2s, background-color 0.2s;
 }
 
-.cloud::before,
-.cloud::after {
-    content: '';
-    position: absolute;
-    background: white;
-    border-radius: 50%;
+.start-button:hover {
+    transform: scale(1.05);
+    background: #ffe44d;
 }
 
-.cloud::before {
-    width: 50%;
-    height: 100%;
-    top: -50%;
-    left: 25%;
-}
-
-.cloud::after {
-    width: 30%;
-    height: 75%;
-    top: -37%;
-    left: 10%;
+.start-button:active {
+    transform: scale(0.95);
 }
 
 .cloud.large {
@@ -233,40 +274,126 @@ body {
     height: 25px;
 }
 
+.hud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-family: 'Press Start 2P', cursive;
+    color: #000;
+    text-shadow: 1px 1px 0 #fff;
+    z-index: 100;
+}
+
+.score-container {
+    display: flex;
+    gap: 20px;
+}
+
 .stamina-bar {
     display: flex;
-    gap: 8px;
+    gap: 5px;
     margin-top: 10px;
 }
 
 .stamina-point {
     font-size: 20px;
     line-height: 1;
-    transition: opacity 0.3s, transform 0.3s;
-    transform: rotate(-45deg);
-}
-
-.stamina-point::before {
-    content: '🍗';
+    transition: opacity 0.3s;
 }
 
 .stamina-point.empty {
     opacity: 0.3;
-    transform: rotate(-45deg) scale(0.9);
+}
+
+.badge-bar {
+    display: flex;
+    gap: 5px;
+    margin-top: 5px;
+}
+
+.badge-slot {
+    font-size: 22px;
+    line-height: 1;
+    transition: all 0.3s;
+    opacity: 0.2;
+}
+
+.badge-slot::before {
+    content: '🌟';
+}
+
+.badge-slot.earned {
+    opacity: 1;
+    animation: badgeEarned 0.5s ease-out;
+}
+
+.badge-slot.active {
+    animation: badgeGlow 2s infinite;
+}
+
+.badge-slot.used {
+    opacity: 0.3;
     filter: grayscale(1);
+}
+
+@keyframes badgeGlow {
+    0% { filter: brightness(1); }
+    50% { filter: brightness(1.5); }
+    100% { filter: brightness(1); }
+}
+
+@keyframes badgeEarned {
+    0% { transform: scale(2); filter: brightness(2); }
+    100% { transform: scale(1); filter: brightness(1); }
 }
 
 .chicken {
     position: absolute;
     bottom: 50px;
-    font-size: 28px;
+    font-size: 24px;
     line-height: 1;
-    height: 28px;
-    transform: rotate(-45deg);
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
 }
 
 .chicken::before {
     content: '🍗';
+}
+
+.chicken.collected {
+    animation: collectStamina 0.5s ease-out forwards;
+    position: fixed;
+    left: 50% !important;
+    bottom: 20%;
+}
+
+.chicken.collected::after {
+    content: '+3';
+    font-family: 'Press Start 2P', cursive;
+    font-size: 14px;
+    color: #ffd700;
+    text-shadow: 1px 1px 0 #000;
+    margin-left: 4px;
+    position: relative;
+    top: -5px;
+}
+
+@keyframes collectStamina {
+    0% {
+        transform: translateY(0) translateX(-50%);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-30px) translateX(-50%);
+        opacity: 0;
+    }
 }
 
 .win-screen {
@@ -322,4 +449,222 @@ body {
         transform: translateY(-50px);
         opacity: 0;
     }
+}
+
+.start-menu {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    min-width: 300px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+}
+
+.game-title {
+    color: #ffd700;
+    font-size: 32px;
+    margin-bottom: 30px;
+    text-shadow: 3px 3px #000;
+}
+
+.stats {
+    margin: 20px 0;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.stat-item {
+    margin: 10px 0;
+    color: #fff;
+    font-size: 14px;
+}
+
+.start-button {
+    background: #ffd700;
+    border: none;
+    padding: 15px 30px;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 16px;
+    color: #000;
+    border-radius: 5px;
+    cursor: pointer;
+    margin: 20px 0;
+    transition: transform 0.2s, background-color 0.2s;
+}
+
+.start-button:hover {
+    transform: scale(1.05);
+    background: #ffe44d;
+}
+
+.start-button:active {
+    transform: scale(0.95);
+}
+
+.instructions {
+    margin-top: 20px;
+    font-size: 12px;
+    line-height: 2;
+    color: #ccc;
+}
+
+.instructions p {
+    margin: 5px 0;
+}
+
+.game-over-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 20px 0;
+}
+
+.game-button {
+    background: #ffd700;
+    border: none;
+    padding: 12px 24px;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 14px;
+    color: #000;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: transform 0.2s, background-color 0.2s;
+    min-width: 200px;
+}
+
+.game-button:hover {
+    transform: scale(1.05);
+    background: #ffe44d;
+}
+
+.game-button:active {
+    transform: scale(0.95);
+}
+
+.controls-text {
+    margin-top: 20px;
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.badge-container {
+    position: absolute;
+    top: 70px;
+    left: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 12px;
+    color: #ffd700;
+}
+
+.badge-display {
+    display: flex;
+    gap: 5px;
+}
+
+.sheriff-badge {
+    width: 24px;
+    height: 24px;
+    background: #ffd700;
+    clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+    position: relative;
+    transition: transform 0.3s;
+}
+
+.sheriff-badge.active {
+    animation: badgeGlow 2s infinite;
+}
+
+.sheriff-badge.used {
+    opacity: 0.3;
+}
+
+@keyframes badgeGlow {
+    0% { filter: brightness(1); }
+    50% { filter: brightness(1.5); }
+    100% { filter: brightness(1); }
+}
+
+@keyframes badgeEarned {
+    0% { transform: scale(2); filter: brightness(2); }
+    100% { transform: scale(1); filter: brightness(1); }
+}
+
+.badge-earned {
+    animation: badgeEarned 0.5s ease-out;
+}
+
+.badge-pickup {
+    position: absolute;
+    font-size: 64px;
+    pointer-events: none;
+    z-index: 100;
+    animation: badgePickupBurst 1.5s ease-in-out forwards;
+}
+
+.badge-pickup::before {
+    content: '🌟';
+}
+
+@keyframes badgePickupBurst {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.1);
+    }
+    20% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.2);
+    }
+    40% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+    60% {
+        transform: translate(-50%, -50%) scale(1.1);
+    }
+    80% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(calc(50vw - 50%), calc(50vh - 50%)) scale(0.2);
+    }
+}
+
+.menu {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    padding: 30px;
+    border-radius: 15px;
+    border: 3px solid #ffd700;
+    text-align: center;
+    font-family: 'Press Start 2P', cursive;
+    color: #fff;
+    z-index: 1000;
+    min-width: 300px;
+}
+
+.menu h1 {
+    color: #ffd700;
+    margin-bottom: 20px;
+    font-size: 24px;
+}
+
+.instructions {
+    margin-top: 20px;
+    font-size: 12px;
+    line-height: 2;
 }

@@ -5,44 +5,76 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hoppin' Henry</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" type="text/css" href="styles.css">
 </head>
 <body>
     <div class="game-container">
-        <div id="clouds-container"></div>
-        <div class="ground"></div>
-        <div class="cowboy" id="cowboy"></div>
-        <div class="controls-container">
-            <div class="controls">Press SPACE to Jump</div>
+        <div id="start-menu" class="menu">
+            <h1 class="game-title">Hoppin' Henry</h1>
+            <div class="stats">
+                <div class="stat-item">Best Score: <span id="bestScore">0</span></div>
+                <div class="stat-item">Highest Level: <span id="highestLevel">1</span></div>
+            </div>
+            <button id="startButton" class="start-button"><span class="key-hint">N</span>ew Game</button>
+            <div class="instructions">
+                <p>SPACE - Jump/Double Jump</p>
+                <p>Double Jump uses 1 stamina</p>
+                <p>Collect 🍗 to restore stamina</p>
+                <p>Watch out for tall cacti!</p>
+                <p>Every 10th level gives a protection star!</p>
+            </div>
         </div>
-        <div class="score-container">
-            <div class="level" id="level">Level: 1</div>
-            <div class="score" id="score">Score: 0</div>
-            <div class="high-score" id="highScore">High Score: 0</div>
+        <div id="clouds-container"></div>
+        <div class="cowboy" id="cowboy"></div>
+        <div class="ground"></div>
+        <div class="hud hidden">
+            <div class="score-container">
+                <div class="level" id="level">Level: 1/100</div>
+                <div class="score" id="score">Score: 0</div>
+                <div class="high-score" id="highScore">High Score: 0</div>
+            </div>
             <div class="stamina-bar">
-                <div class="stamina-point"></div>
-                <div class="stamina-point"></div>
-                <div class="stamina-point"></div>
-                <div class="stamina-point"></div>
-                <div class="stamina-point"></div>
-                <div class="stamina-point"></div>
+                <div class="stamina-point">🍗</div>
+                <div class="stamina-point">🍗</div>
+                <div class="stamina-point">🍗</div>
+                <div class="stamina-point">🍗</div>
+                <div class="stamina-point">🍗</div>
+                <div class="stamina-point">🍗</div>
+            </div>
+            <div class="badge-bar">
+                <div class="badge-slot"></div>
+                <div class="badge-slot"></div>
+                <div class="badge-slot"></div>
+                <div class="badge-slot"></div>
+                <div class="badge-slot"></div>
+                <div class="badge-slot"></div>
+                <div class="badge-slot"></div>
+                <div class="badge-slot"></div>
+                <div class="badge-slot"></div>
+                <div class="badge-slot"></div>
             </div>
         </div>
         <div class="game-over" id="gameOver">
             <div class="game-over-text">Game Over!</div>
-            <div id="continueOption" style="display: none;">
-                <div class="continue-text">Continue from checkpoint?</div>
-                <div class="controls-text">
-                    <span class="key-hint">R</span> - Restart from Level 1<br>
-                    <span class="key-hint">C</span> - Continue from Level <span id="continueLevel">1</span>
-                </div>
+            <div id="continueOption">
+                <button class="game-button" onclick="return resetGame(true)">
+                    <span class="key-hint">C</span>ontinue Level <span id="continueLevel">1</span>
+                </button>
             </div>
-            <div id="regularRestart" class="restart-text">Press R to Restart</div>
+            <div id="regularRestart">
+                <button class="game-button" onclick="return resetGame(false)">
+                    <span class="key-hint">R</span>estart Game
+                </button>
+            </div>
+            <button class="game-button" onclick="return showMainMenu()">
+                <span class="key-hint">M</span>ain Menu
+            </button>
         </div>
         <div class="win-screen" id="winScreen">
             <div class="win-text">You Win!</div>
-            <div class="win-subtext">You've mastered all 100 levels!</div>
-            <div class="restart-text">Press R to Play Again</div>
+            <button class="game-button" onclick="return showMainMenu()">
+                <span class="key-hint">M</span>ain Menu
+            </button>
         </div>
     </div>
     <script src="game.js"></script>
